@@ -1,17 +1,20 @@
 #include <cuda.h>
 #include <stdio.h>
-#define N 10
+#define N 100
 
 __global__ void bubbleSort(float *d_arr) {
-  // Get the index of the current element to be sorted
-  int i = threadIdx.x;
+  // Compare all pairs of elements
+  for (int i = 0; i < N - 1; i++) {
+    // Get the index of the current element to be sorted
+    int j = threadIdx.x + i;
 
-  // Compare the current element with the next element
-  if (d_arr[i] > d_arr[i + 1]) {
-    // Swap the elements if the current element is greater than the next
-    float temp = d_arr[i];
-    d_arr[i] = d_arr[i + 1];
-    d_arr[i + 1] = temp;
+    // Compare the current element with the next element
+    if (d_arr[j] > d_arr[j + 1]) {
+      // Swap the elements if the current element is greater than the next
+      float temp = d_arr[j];
+      d_arr[j] = d_arr[j + 1];
+      d_arr[j + 1] = temp;
+    }
   }
 }
 
@@ -55,18 +58,16 @@ __global__ void insertionSort(float *d_arr) {
 __host__ float* generateRandomElements(){
     float constant = 1.0f;
     float *arr;
-    arr = (float*)malloc(N*sizeof(float));  
-    if ( arr == NULL ){
-        printf("Run out of memmory!\n");
-        exit(1);
+    arr = (float*)malloc((N + 1) * sizeof(float));  
+    if (arr == NULL) {
+      printf("Run out of memmory!\n");
+      exit(1);
     }
 
-    for (int i = 0; i<N; i++){
-          arr[i] = ((float)rand()/RAND_MAX)* constant; //generate random float element for array
-          printf("index %d: %f | ", i , arr[i]);
-          
+    for (int i = 0; i < N; i++) {
+      arr[i + 1] = ((float)rand() / RAND_MAX) * constant; //generate random float element for array
     }
-    return arr;
+    return &arr[1];
 }
 
 void printArray(float *array, int size){
@@ -80,12 +81,38 @@ void printArray(float *array, int size){
 
 }
 
+__global__ void bubbleSortWithSharedMemory(float *d_arr) {
+  // Declare shared memory array
+  __shared__ float s_arr[N];
 
+  // Load a portion of the data from global memory into shared memory
+  int i = threadIdx.x;
+  s_arr[i] = d_arr[i];
+  __syncthreads();
+
+  // Sort the data in shared memory
+  
+    for (int i = 0; i < N - 1; i++) {
+    // Get the index of the current element to be sorted
+    int j = threadIdx.x + i;
+
+    // Compare the current element with the next element
+    if (s_arr[j] > s_arr[j + 1]) {
+      // Swap the elements if the current element is greater than the next
+      float temp = s_arr[j];
+      s_arr[j] = s_arr[j+1];
+      s_arr[j+1] = temp;
+      
+    }
+    // each thread writes one element back to global memory
+    
+  }
+    __syncthreads(); // synchronize threads again before writing back to global memory
+    d_arr[i] = s_arr[i];
+}
 int main(void) {
   // Create host array
   
-
-
   float *h_arr, *d_arr;
 
   h_arr = generateRandomElements();
@@ -97,7 +124,7 @@ int main(void) {
   cudaMemcpy(d_arr, h_arr, N * sizeof(float), cudaMemcpyHostToDevice);
 
   // Launch bubbleSort kernel
-  insertionSort<<<1, N>>>(d_arr);
+  bubbleSortWithSharedMemory<<<1, N>>>(d_arr);
 
   // Copy the sorted array back to the host
   cudaMemcpy(h_arr, d_arr, N * sizeof(float), cudaMemcpyDeviceToHost);
