@@ -7,7 +7,7 @@
 #define N 10240  // size of array
 #define BLOCK_SIZE 1024 
 
-__global__ void chunkedBubbleSort(float *dev_a,int chunkSize) {
+__global__ void chunkedBubbleSort(float *dev_a) {
     // Compute the global index for each thread
     int gid = blockIdx.x * blockDim.x + threadIdx.x;
     
@@ -64,7 +64,7 @@ int main() {
     int numBlocks = (N + BLOCK_SIZE - 1) / BLOCK_SIZE;
  
     int chunkSize = 512;
-    chunkedBubbleSort<<<numBlocks, BLOCK_SIZE>>>(dev_a, chunkSize);
+    chunkedBubbleSort<<<numBlocks, BLOCK_SIZE>>>(dev_a);
 
     
     cudaDeviceSynchronize();
